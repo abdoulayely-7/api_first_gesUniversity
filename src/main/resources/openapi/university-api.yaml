@@ -1,0 +1,244 @@
+﻿openapi: 3.0.0
+info:
+  title: API Gestion Universitaire
+  description: |
+    API pour la gestion du catalogue des cours et des inscriptions d'étudiants.
+    Plateforme SaaS destinée aux établissements d'enseignement supérieur (Licence 3).
+  version: 1.0.0
+  contact:
+    name: Support Universitaire
+    email: support@university.com
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Environnement de développement
+
+tags:
+  - name: Catalogue
+    description: Gestion du catalogue des cours
+  - name: Inscriptions
+    description: Gestion des inscriptions aux cours
+
+paths:
+  /courses:
+    get:
+      tags:
+        - Catalogue
+      summary: Consulter le catalogue des cours
+      operationId: listCourses
+      parameters:
+        - name: level
+          in: query
+          description: Niveau d'études pour filtrer
+          required: false
+          schema:
+            type: string
+            enum: ["Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2"]
+      responses:
+        '200':
+          description: Liste des cours récupérée avec succès
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  courses:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CourseDTO'
+
+  /enrollments:
+    post:
+      tags:
+        - Inscriptions
+      summary: Inscrire un étudiant à un cours
+      operationId: enrollStudent
+      requestBody:
+        description: Données d'inscription de l'étudiant
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnrollmentRequest'
+      responses:
+        '201':
+          description: Inscription réussie
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollmentConfirmation'
+        '400':
+          description: Données d'inscription invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflit métier - Inscription impossible (cours complet)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /enrollments/{enrollmentId}/grades:
+    put:
+      tags:
+        - Inscriptions
+      summary: Saisir la note d'examen
+      operationId: updateGrade
+      parameters:
+        - name: enrollmentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        description: Données de la note
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GradeRequest'
+      responses:
+        '204':
+          description: Note mise à jour avec succès
+        '400':
+          description: Données de note invalides
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Inscription non trouvée
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    CourseDTO:
+      type: object
+      required:
+        - courseId
+        - title
+        - credits
+        - professorName
+        - status
+      properties:
+        courseId:
+          type: string
+          example: "CS-301"
+        title:
+          type: string
+          example: "Architecture Logicielle"
+        credits:
+          type: integer
+          minimum: 1
+          maximum: 30
+          example: 6
+        professorName:
+          type: string
+          example: "Dr. Jean Dupont"
+        status:
+          type: string
+          enum: [OUVERT, COMPLET, FERME]
+          example: "OUVERT"
+        level:
+          type: string
+          enum: ["Licence 1", "Licence 2", "Licence 3", "Master 1", "Master 2"]
+          example: "Licence 3"
+        maxStudents:
+          type: integer
+          example: 30
+        enrolledCount:
+          type: integer
+          example: 28
+
+    EnrollmentRequest:
+      type: object
+      required:
+        - studentNumber
+        - courseId
+        - academicYear
+      properties:
+        studentNumber:
+          type: string
+          example: "ETU-2026-045"
+        courseId:
+          type: string
+          example: "CS-301"
+        academicYear:
+          type: string
+          pattern: '^\d{4}-\d{4}$'
+          example: "2025-2026"
+
+    EnrollmentConfirmation:
+      type: object
+      required:
+        - enrollmentId
+        - studentNumber
+        - courseId
+        - confirmationDate
+        - ticketNumber
+        - academicYear
+        - status
+      properties:
+        enrollmentId:
+          type: string
+          example: "ENR-2026-00125"
+        studentNumber:
+          type: string
+          example: "ETU-2026-045"
+        courseId:
+          type: string
+          example: "CS-301"
+        confirmationDate:
+          type: string
+          format: date-time
+          example: "2026-01-15T10:30:00Z"
+        ticketNumber:
+          type: string
+          example: "TKT-2026-08945"
+        academicYear:
+          type: string
+          example: "2025-2026"
+        status:
+          type: string
+          enum: [CONFIRMED, PENDING, CANCELLED]
+          example: "CONFIRMED"
+
+    GradeRequest:
+      type: object
+      required:
+        - score
+      properties:
+        score:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 20
+          example: 15.5
+        feedback:
+          type: string
+          maxLength: 500
+          example: "Excellente compréhension"
+
+    ErrorResponse:
+      type: object
+      required:
+        - timestamp
+        - status
+        - error
+        - message
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+          enum: [VALIDATION_ERROR, NOT_FOUND, COURSE_FULL, INVALID_SCORE, INTERNAL_SERVER_ERROR]
+        message:
+          type: string
